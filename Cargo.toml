@@ -1,0 +1,7 @@
+[package]
+name = "trichys"
+version = "0.1.0"
+authors = ["Rene Weber <reweber@ebay.com>"]
+
+[dependencies]
+futures = { version = "0.1.14" }
