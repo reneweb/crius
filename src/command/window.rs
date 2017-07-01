@@ -1,8 +1,5 @@
 use std::collections::vec_deque::VecDeque;
-use std::collections::HashSet;
 use std::time::{Instant, Duration};
-use std::sync::{Arc, Mutex};
-use std::cell::RefCell;
 use command::Config;
 
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]

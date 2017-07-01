@@ -7,7 +7,7 @@ use self::error::reject_error::RejectError;
 use self::circuit_breaker::CircuitBreaker;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{Sender, Receiver};
+use std::sync::mpsc::Receiver;
 use std::sync::mpsc;
 use std::thread;
 
@@ -137,7 +137,6 @@ impl <T, CMD, FB> RunnableCommand<T, CMD, FB> where T: Send + 'static, CMD: Fn()
             command_params: Arc::new(Mutex::new(CommandParams {
                 cmd: cmd,
                 fb: fb,
-                config: final_config,
                 circuit_breaker:CircuitBreaker::new(final_config)
             }))
         }
@@ -174,6 +173,5 @@ impl <T, CMD, FB> RunnableCommand<T, CMD, FB> where T: Send + 'static, CMD: Fn()
 struct CommandParams<T, CMD, FB> where T: Send + 'static, CMD: Fn() -> Result<T, Box<CommandError>> + Sync + Send + 'static, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
     cmd: CMD,
     fb: Option<FB>,
-    config: Config,
     circuit_breaker: CircuitBreaker
 }
