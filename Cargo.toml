@@ -1,7 +1,6 @@
 [package]
-name = "trichys"
+name = "crius"
 version = "0.1.0"
-authors = ["Rene Weber <reweber@ebay.com>"]
+authors = ["Rene Weber <weber.rene@live.de>"]
 
 [dependencies]
-futures = { version = "0.1.14" }
