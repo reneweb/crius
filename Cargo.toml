@@ -2,5 +2,7 @@
 name = "crius"
 version = "0.1.0"
 authors = ["Rene Weber <weber.rene@live.de>"]
+description = "Crius is a simple hystrix-like circuit breaker"
+license = "Apache-2.0"
 
 [dependencies]
