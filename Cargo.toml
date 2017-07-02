@@ -15,6 +15,6 @@ categories = ["web-programming", "asynchronous", "concurrency"]
 
 [badges]
 
-travis-ci = { repository = "https://github.com/reneweb/crius", branch = "master" }
+travis-ci = { repository = "reneweb/crius", branch = "master" }
 
 [dependencies]
