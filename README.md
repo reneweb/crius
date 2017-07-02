@@ -1,4 +1,4 @@
-# Crius
+# Crius [![Build Status](https://travis-ci.org/reneweb/crius.svg?branch=master)](https://travis-ci.org/reneweb/crius)
 
 Crius is a simple hystrix-like circuit breaker for rust.
 
