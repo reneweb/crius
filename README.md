@@ -13,13 +13,21 @@ extern crate crius;
 use crius::command::Command;
 
 fn run_command() {
-    let receiver = Command::define(|| {
+    let mut command = Command::define(|| {
         return Ok("Ok Result")
-    }).create().run();
+    }).create();
 
-    assert_eq!("Ok Result", receiver.recv().unwrap().unwrap());
+    let receiver_res_1 = command.run();
+    let receiver_res_2 = command.run();
+
+    assert_eq!("Ok Result", receiver_res_1.recv().unwrap().unwrap());
+    assert_eq!("Ok Result", receiver_res_2.recv().unwrap().unwrap());
 }
 ```
+First we create a command by passing a closure to the `define` function.
+The closure must return a `Result` - if the `Err` results are too high, the circuit will open (i.e. will reject further commands for a period of time).
+After we defined the command we can now run it as often as we want. The output of the run command will be given through a channel, which is why a receiver object is returned.
+Note that the window that keeps track of success / error results is per defined command. Therefore, creating another command will open / close the circuit independently of the first one.
 
 ### Command with fallback
 ```rust
@@ -56,6 +64,11 @@ fn run_command_with_fallback() {
 }
 ```
 
+Here a different function is used to define the command in order to provide a fallback function.
+In the command closure we return an error. The type of error the we return needs to be of type `Error + Send + Sync + 'static`.
+In the fallback we get the error passed and then need to return a success value.
+Note: in this case we call the `run` function directly for brevity - it makes the command not re-usable.
+
 ### Command with custom configuration
 ```rust
 extern crate crius;
@@ -78,6 +91,9 @@ fn run_command_with_fallback() {
     assert_eq!("Ok Result", receiver.recv().unwrap().unwrap());
 }
 ```
+
+In this example a config object is created that is used when defining the command. 
+The complete list of configuration options with description is [here](#configuration).
 
 ### Error types and handling
 
