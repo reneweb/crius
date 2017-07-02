@@ -13,4 +13,8 @@ repository = "https://github.com/reneweb/crius"
 keywords = ["circuit-breaker", "command", "hystrix"]
 categories = ["web-programming", "asynchronous", "concurrency"]
 
+[badges]
+
+travis-ci = { repository = "https://github.com/reneweb/crius", branch = "master" }
+
 [dependencies]
