@@ -1,6 +1,6 @@
 [package]
 name = "crius"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Rene Weber <weber.rene@live.de>"]
 description = "Crius is a simple hystrix-like circuit breaker"
 license = "Apache-2.0"
