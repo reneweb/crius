@@ -2,7 +2,15 @@
 name = "crius"
 version = "0.1.2"
 authors = ["Rene Weber <weber.rene@live.de>"]
+
 description = "Crius is a simple hystrix-like circuit breaker"
 license = "Apache-2.0"
+readme = "README.md"
+
+homepage = "https://github.com/reneweb/crius"
+repository = "https://github.com/reneweb/crius"
+
+keywords = ["circuit-breaker", "command", "hystrix"]
+categories = ["web-programming", "asynchronous", "concurrency"]
 
 [dependencies]
