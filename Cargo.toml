@@ -18,3 +18,4 @@ categories = ["web-programming", "asynchronous", "concurrency"]
 travis-ci = { repository = "reneweb/crius", branch = "master" }
 
 [dependencies]
+threadpool = "1.0"
