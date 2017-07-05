@@ -82,7 +82,8 @@ fn run_command_with_fallback() {
         .error_threshold(10)
         .error_threshold_percentage(50)
         .buckets_in_window(100)
-        .bucket_size_in_ms(1000);
+        .bucket_size_in_ms(1000)
+        .threadpool_size(10);
 
     let receiver = Command::define(|| {
         return Ok("Ok Result")
@@ -133,3 +134,5 @@ fn command_with_error_handlong() {
 `buckets_in_window` - Trychis is using a rolling window to track success/error calls, this property defines the amount of buckets in a window (buckets_in_window * bucket_size_in_ms is the overall length in ms of the window) - Default 10
 
 `bucket_size_in_ms` - This property defines the ms a bucket is long, i.e. each x ms a new bucket will be created (buckets_in_window * bucket_size_in_ms is the overall length in ms of the window) - Default 1000
+
+`threadpool_size` - Size of the thread pool used to run the command - Default 10
