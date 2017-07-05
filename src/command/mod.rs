@@ -9,7 +9,7 @@ use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc;
-use std::thread;
+use threadpool::ThreadPool;
 
 pub type CommandError = Error + Send + Sync + 'static;
 
@@ -19,7 +19,8 @@ pub struct Config {
     pub error_threshold_percentage: Option<i32>,
     pub buckets_in_window: Option<i32>,
     pub bucket_size_in_ms:  Option<u64>,
-    pub circuit_open_ms: Option<u64>
+    pub circuit_open_ms: Option<u64>,
+    pub threadpool_size: Option<i32>
 }
 
 impl Config {
@@ -29,7 +30,8 @@ impl Config {
             error_threshold_percentage: None,
             buckets_in_window: None,
             bucket_size_in_ms: None,
-            circuit_open_ms: None
+            circuit_open_ms: None,
+            threadpool_size: None
         }
     }
 
@@ -115,9 +117,11 @@ const DEFAULT_ERROR_THRESHOLD_PERCENTAGE: i32 = 50;
 const DEFAULT_BUCKETS_IN_WINDOW: i32 = 10;
 const DEFAULT_BUCKET_SIZE_IN_MS: u64 = 1000;
 const DEFAULT_CIRCUIT_OPEN_MS: u64 = 5000;
+const DEFAULT_THREADPOOL_SIZE: i32 = 10;
 
 pub struct RunnableCommand<T, CMD, FB> where T: Send + 'static, CMD: Fn() -> Result<T, Box<CommandError>> + Sync + Send + 'static, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
-    command_params: Arc<Mutex<CommandParams<T, CMD, FB>>>
+    command_params: Arc<Mutex<CommandParams<T, CMD, FB>>>,
+    pool: ThreadPool
 }
 
 impl <T, CMD, FB> RunnableCommand<T, CMD, FB> where T: Send + 'static, CMD: Fn() -> Result<T, Box<CommandError>> + Sync + Send + 'static, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
@@ -131,6 +135,7 @@ impl <T, CMD, FB> RunnableCommand<T, CMD, FB> where T: Send + 'static, CMD: Fn()
             buckets_in_window: config.and_then(|c| c.buckets_in_window).or(Some(DEFAULT_BUCKETS_IN_WINDOW)),
             bucket_size_in_ms: config.and_then(|c| c.bucket_size_in_ms).or(Some(DEFAULT_BUCKET_SIZE_IN_MS)),
             circuit_open_ms: config.and_then(|c| c.circuit_open_ms).or(Some(DEFAULT_CIRCUIT_OPEN_MS)),
+            threadpool_size: config.and_then(|c| c.threadpool_size).or(Some(DEFAULT_THREADPOOL_SIZE))
         };
 
         return RunnableCommand {
@@ -138,7 +143,8 @@ impl <T, CMD, FB> RunnableCommand<T, CMD, FB> where T: Send + 'static, CMD: Fn()
                 cmd: cmd,
                 fb: fb,
                 circuit_breaker:CircuitBreaker::new(final_config)
-            }))
+            })),
+            pool: ThreadPool::new(1)
         }
     }
 
@@ -146,7 +152,7 @@ impl <T, CMD, FB> RunnableCommand<T, CMD, FB> where T: Send + 'static, CMD: Fn()
         let command = self.command_params.clone();
         let (tx, rx) = mpsc::channel();
 
-        thread::spawn(move || {
+        self.pool.execute(move || {
             let is_allowed = command.lock().unwrap().circuit_breaker.check_command_allowed();
             if is_allowed {
                 let res = (command.lock().unwrap().cmd)();
@@ -154,16 +160,17 @@ impl <T, CMD, FB> RunnableCommand<T, CMD, FB> where T: Send + 'static, CMD: Fn()
 
                 if command.lock().unwrap().fb.is_some() && res.is_err() {
                     let final_res = Ok(res.unwrap_or_else(command.lock().unwrap().fb.as_ref().unwrap()));
-                    tx.send(final_res)
+                    tx.send(final_res).unwrap()
                 } else {
-                    tx.send(res)
+                    tx.send(res).unwrap()
                 }
             } else if command.lock().unwrap().fb.is_some() {
                 let res = (command.lock().unwrap().fb.as_ref().unwrap())(Box::new(RejectError {}));
-                tx.send(Ok(res))
+                tx.send(Ok(res)).unwrap()
             } else {
-                tx.send(Err(Box::new(RejectError {}) as Box<CommandError>))
+                tx.send(Err(Box::new(RejectError {}) as Box<CommandError>)).unwrap()
             }
+
         });
 
         return rx
