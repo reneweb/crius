@@ -28,72 +28,81 @@ mod circuit_breaker {
 
     #[test]
     fn runs_command() {
-        let rx = Command::define(|| {
+        let rx = Command::define(|_| {
                 return Ok(5)
-            }).create().run();
+            }).create().run(());
 
         assert_eq!(5, rx.recv().unwrap().unwrap());
     }
 
     #[test]
     fn runs_command_multiple_times() {
-        let mut cmd = Command::define(|| {
+        let mut cmd = Command::define(|_| {
             return Ok(5)
         }).create();
 
         for _ in 0..5 {
-            let rx = cmd.run();
+            let rx = cmd.run(());
             assert_eq!(5, rx.recv().unwrap().unwrap());
         }
     }
 
     #[test]
+    fn runs_command_with_param() {
+        let rx = Command::define(|param| {
+            return Ok(param)
+        }).create().run(5);
+
+        assert_eq!(5, rx.recv().unwrap().unwrap());
+    }
+
+    #[test]
     fn rejects_command_if_circuit_open() {
-        let mut cmd: RunnableCommand<i32, _, _> = Command::define(|| {
+        let mut cmd: RunnableCommand<(), (), _, _> = Command::define(|_| {
             return Err(Box::new(TestError {}));
         }).config(*Config::new().error_threshold(5)).create();
 
         for _ in 0..5 {
-            let rx = cmd.run();
+            let rx = cmd.run(());
             assert_eq!(true, rx.recv().unwrap().unwrap_err().is::<TestError>()); // Fallback by returned error
         }
 
-        let rx = cmd.run();
+        let rx = cmd.run(());
         assert_eq!(true, rx.recv().unwrap().unwrap_err().is::<RejectError>()); // Fallback by reject error
     }
 
     #[test]
     fn returns_fallback_if_err_result_returned() {
-        let mut cmd = Command::define_with_fallback(|| {
+        let mut cmd = Command::define_with_fallback(|_| {
             return Err(Box::new(TestError {}))
         }, |_| {
             return 5;
         }).create();
 
-        let rx = cmd.run();
+        let rx = cmd.run(());
         assert_eq!(5, rx.recv().unwrap().unwrap());
     }
 
     #[test]
     fn returns_fallback_if_circuit_open() {
-        let mut cmd = Command::define_with_fallback(|| {
+        let mut cmd = Command::define_with_fallback(|_| {
             return Err(Box::new(TestError {}))
         }, |_| {
             return 5;
         }).config(*Config::new().error_threshold(5)).create();
 
         for _ in 0..5 {
-            let rx = cmd.run();
+            let rx = cmd.run(());
             assert_eq!(5, rx.recv().unwrap().unwrap()); // Fallback by returned error
         }
 
-        let rx = cmd.run();
+        let rx = cmd.run(());
         assert_eq!(5, rx.recv().unwrap().unwrap()); // Fallback by reject error
     }
 
     #[test]
     fn handles_lots_of_calls() {
-        let mut cmd = Command::define(|| {
+        let mut cmd = Command::define(|_| {
             let ten_millis = time::Duration::from_millis(10);
             thread::sleep(ten_millis);
 
@@ -102,7 +111,7 @@ mod circuit_breaker {
 
         let mut rxs = Vec::new();
         for _ in 0..1000 {
-            rxs.push(cmd.run());
+            rxs.push(cmd.run(()));
         }
 
         for rx in rxs {

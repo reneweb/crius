@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc;
 use threadpool::ThreadPool;
+use std::marker::PhantomData;
 
 pub type CommandError = Error + Send + Sync + 'static;
 
@@ -61,53 +62,57 @@ impl Config {
     }
 }
 
-pub struct Command<T, CMD> where T: Send, CMD: Fn() -> Result<T, Box<CommandError>> + Sync + Send {
+pub struct Command<P, T, CMD> where T: Send, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send {
     pub config: Option<Config>,
-    pub cmd: CMD
+    pub cmd: CMD,
+    phantom_data: PhantomData<P>
 }
 
-pub struct CommandWithFallback<T, CMD, FB> where T: Send, CMD: Fn() -> Result<T, Box<CommandError>> + Sync + Send, FB: Fn(Box<CommandError>) -> T + Sync + Send {
+pub struct CommandWithFallback<P, T, CMD, FB> where T: Send, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send, FB: Fn(Box<CommandError>) -> T + Sync + Send {
     pub fb: FB,
     pub config: Option<Config>,
-    pub cmd: CMD
+    pub cmd: CMD,
+    phantom_data: PhantomData<P>
 }
 
-impl <T, CMD> Command<T, CMD> where T: Send + 'static, CMD: Fn() -> Result<T, Box<CommandError>> + Sync + Send {
-    pub fn define(cmd: CMD) -> Command<T, CMD> {
+impl <P, T, CMD> Command<P, T, CMD> where T: Send + 'static, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send {
+    pub fn define(cmd: CMD) -> Command<P, T, CMD> {
         return Command {
             cmd: cmd,
-            config: None
+            config: None,
+            phantom_data: PhantomData
         }
     }
 
-    pub fn define_with_fallback<FB>(cmd: CMD, fallback: FB) -> CommandWithFallback<T, CMD, FB> where FB: Fn(Box<CommandError>) -> T + Sync + Send {
+    pub fn define_with_fallback<FB>(cmd: CMD, fallback: FB) -> CommandWithFallback<P, T, CMD, FB> where FB: Fn(Box<CommandError>) -> T + Sync + Send {
         return CommandWithFallback {
             cmd: cmd,
             fb: fallback,
-            config: None
+            config: None,
+            phantom_data: PhantomData
         }
     }
 }
 
-impl <T, CMD> Command<T, CMD> where T: Send + 'static, CMD: Fn() -> Result<T, Box<CommandError>> + Sync + Send {
+impl <P, T, CMD> Command<P, T, CMD> where P: Send + 'static, T: Send + 'static, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send {
 
     pub fn config(mut self, config: Config) -> Self {
         self.config = Some(config);
         return self
     }
 
-    pub fn create(self) -> RunnableCommand<T, CMD, fn(Box<CommandError>) -> T> {
+    pub fn create(self) -> RunnableCommand<P, T, CMD, fn(Box<CommandError>) -> T> {
         return RunnableCommand::new(self.cmd, None, self.config)
     }
 }
 
-impl <T, CMD, FB> CommandWithFallback<T, CMD, FB> where T: Send + 'static, CMD: Fn() -> Result<T, Box<CommandError>> + Sync + Send, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
+impl <P, T, CMD, FB> CommandWithFallback<P, T, CMD, FB> where P: Send + 'static, T: Send + 'static, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
     pub fn config(mut self, config: Config) -> Self {
         self.config = Some(config);
         return self
     }
 
-    pub fn create(self) -> RunnableCommand<T, CMD, FB> {
+    pub fn create(self) -> RunnableCommand<P, T, CMD, FB> {
         return RunnableCommand::new(self.cmd, Some(self.fb), self.config)
     }
 }
@@ -119,16 +124,16 @@ const DEFAULT_BUCKET_SIZE_IN_MS: u64 = 1000;
 const DEFAULT_CIRCUIT_OPEN_MS: u64 = 5000;
 const DEFAULT_THREADPOOL_SIZE: i32 = 10;
 
-pub struct RunnableCommand<T, CMD, FB> where T: Send + 'static, CMD: Fn() -> Result<T, Box<CommandError>> + Sync + Send + 'static, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
-    command_params: Arc<Mutex<CommandParams<T, CMD, FB>>>,
+pub struct RunnableCommand<P, T, CMD, FB> where T: Send + 'static, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send + 'static, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
+    command_params: Arc<Mutex<CommandParams<P, T, CMD, FB>>>,
     pool: ThreadPool
 }
 
-impl <T, CMD, FB> RunnableCommand<T, CMD, FB> where T: Send + 'static, CMD: Fn() -> Result<T, Box<CommandError>> + Sync + Send + 'static, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
+impl <P, T, CMD, FB> RunnableCommand<P, T, CMD, FB> where P: Send + 'static, T: Send + 'static, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send + 'static, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
 
     fn new(cmd: CMD,
            fb: Option<FB>,
-           config: Option<Config>) -> RunnableCommand<T, CMD, FB> {
+           config: Option<Config>) -> RunnableCommand<P, T, CMD, FB> {
         let final_config = Config {
             error_threshold: config.and_then(|c| c.error_threshold).or(Some(DEFAULT_ERROR_THRESHOLD)),
             error_threshold_percentage: config.and_then(|c| c.error_threshold_percentage).or(Some(DEFAULT_ERROR_THRESHOLD_PERCENTAGE)),
@@ -142,20 +147,21 @@ impl <T, CMD, FB> RunnableCommand<T, CMD, FB> where T: Send + 'static, CMD: Fn()
             command_params: Arc::new(Mutex::new(CommandParams {
                 cmd: cmd,
                 fb: fb,
-                circuit_breaker:CircuitBreaker::new(final_config)
+                circuit_breaker:CircuitBreaker::new(final_config),
+                phantom_data: PhantomData
             })),
             pool: ThreadPool::new(1)
         }
     }
 
-    pub fn run(&mut self) -> Receiver<Result<T, Box<CommandError>>> {
+    pub fn run(&mut self, param: P) -> Receiver<Result<T, Box<CommandError>>> {
         let command = self.command_params.clone();
         let (tx, rx) = mpsc::channel();
 
         self.pool.execute(move || {
             let is_allowed = command.lock().unwrap().circuit_breaker.check_command_allowed();
             if is_allowed {
-                let res = (command.lock().unwrap().cmd)();
+                let res = (command.lock().unwrap().cmd)(param);
                 command.lock().unwrap().circuit_breaker.register_result(&res);
 
                 if command.lock().unwrap().fb.is_some() && res.is_err() {
@@ -177,8 +183,9 @@ impl <T, CMD, FB> RunnableCommand<T, CMD, FB> where T: Send + 'static, CMD: Fn()
     }
 }
 
-struct CommandParams<T, CMD, FB> where T: Send + 'static, CMD: Fn() -> Result<T, Box<CommandError>> + Sync + Send + 'static, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
+struct CommandParams<P, T, CMD, FB> where T: Send + 'static, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send + 'static, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
     cmd: CMD,
     fb: Option<FB>,
-    circuit_breaker: CircuitBreaker
+    circuit_breaker: CircuitBreaker,
+    phantom_data: PhantomData<P>
 }
