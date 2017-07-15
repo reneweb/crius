@@ -13,12 +13,12 @@ extern crate crius;
 use crius::command::Command;
 
 fn run_command() {
-    let mut command = Command::define(|| {
+    let mut command = Command::define(|_| {
         return Ok("Ok Result")
     }).create();
 
-    let receiver_res_1 = command.run();
-    let receiver_res_2 = command.run();
+    let receiver_res_1 = command.run(());
+    let receiver_res_2 = command.run(());
 
     assert_eq!("Ok Result", receiver_res_1.recv().unwrap().unwrap());
     assert_eq!("Ok Result", receiver_res_2.recv().unwrap().unwrap());
@@ -54,11 +54,11 @@ unsafe impl Send for MyError {}
 unsafe impl Sync for MyError {}
 
 fn run_command_with_fallback() {
-    let receiver = Command::define_with_fallback(|| {
+    let receiver = Command::define_with_fallback(|param| {
         return Err(Box::new(MyError {}))
     }, |e| {
         return "Fallback result if an error occurred";
-    }).create().run();
+    }).create().run(10);
 
     assert_eq!("Fallback result if an error occurred", receiver.recv().unwrap().unwrap());
 }
@@ -85,9 +85,9 @@ fn run_command_with_fallback() {
         .bucket_size_in_ms(1000)
         .threadpool_size(10);
 
-    let receiver = Command::define(|| {
+    let receiver = Command::define(|_| {
         return Ok("Ok Result")
-    }).config(config).create().run();
+    }).config(config).create().run(());
 
     assert_eq!("Ok Result", receiver.recv().unwrap().unwrap());
 }
@@ -108,9 +108,9 @@ The returned / passed error is of type `Error + Send + Sync + 'static` - with th
 fn command_with_error_handlong() {
 
     //Note: we explicitly need to define the success type here, as it is not in the command function returned nor is there a fallback to provide it.
-    let receiver = Command::<i32, _>::define(|| {
+    let receiver = Command::<(), (), _>::define(|_| {
         return Err(Box::new(MyError { my_error_code: 1234 }))
-    }).create().run();
+    }).create().run(());
 
     let err = receiver.recv().unwrap().unwrap_err();
     if err.is::<MyError>() {
