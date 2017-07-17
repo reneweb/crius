@@ -21,7 +21,8 @@ pub struct Config {
     pub buckets_in_window: Option<i32>,
     pub bucket_size_in_ms:  Option<u64>,
     pub circuit_open_ms: Option<u64>,
-    pub threadpool_size: Option<i32>
+    pub threadpool_size: Option<i32>,
+    pub circuit_breaker_enabled: Option<bool>
 }
 
 impl Config {
@@ -32,7 +33,8 @@ impl Config {
             buckets_in_window: None,
             bucket_size_in_ms: None,
             circuit_open_ms: None,
-            threadpool_size: None
+            threadpool_size: None,
+            circuit_breaker_enabled: None
         }
     }
 
@@ -58,6 +60,11 @@ impl Config {
 
     pub fn circuit_open_ms(&mut self, circuit_open_ms: u64) -> &mut Self {
         self.circuit_open_ms = Some(circuit_open_ms);
+        return self;
+    }
+
+    pub fn circuit_breaker_enabled(&mut self, circuit_breaker_enabled: bool) -> &mut Self {
+        self.circuit_breaker_enabled = Some(circuit_breaker_enabled);
         return self;
     }
 }
@@ -123,6 +130,7 @@ const DEFAULT_BUCKETS_IN_WINDOW: i32 = 10;
 const DEFAULT_BUCKET_SIZE_IN_MS: u64 = 1000;
 const DEFAULT_CIRCUIT_OPEN_MS: u64 = 5000;
 const DEFAULT_THREADPOOL_SIZE: i32 = 10;
+const DEFAULT_CIRCUIT_BREAKER_ENABLED: bool = true;
 
 pub struct RunnableCommand<P, T, CMD, FB> where T: Send + 'static, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send + 'static, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
     command_params: Arc<Mutex<CommandParams<P, T, CMD, FB>>>,
@@ -140,11 +148,13 @@ impl <P, T, CMD, FB> RunnableCommand<P, T, CMD, FB> where P: Send + 'static, T: 
             buckets_in_window: config.and_then(|c| c.buckets_in_window).or(Some(DEFAULT_BUCKETS_IN_WINDOW)),
             bucket_size_in_ms: config.and_then(|c| c.bucket_size_in_ms).or(Some(DEFAULT_BUCKET_SIZE_IN_MS)),
             circuit_open_ms: config.and_then(|c| c.circuit_open_ms).or(Some(DEFAULT_CIRCUIT_OPEN_MS)),
-            threadpool_size: config.and_then(|c| c.threadpool_size).or(Some(DEFAULT_THREADPOOL_SIZE))
+            threadpool_size: config.and_then(|c| c.threadpool_size).or(Some(DEFAULT_THREADPOOL_SIZE)),
+            circuit_breaker_enabled: config.and_then(|c| c.circuit_breaker_enabled).or(Some(DEFAULT_CIRCUIT_BREAKER_ENABLED))
         };
 
         return RunnableCommand {
             command_params: Arc::new(Mutex::new(CommandParams {
+                config: final_config,
                 cmd: cmd,
                 fb: fb,
                 circuit_breaker:CircuitBreaker::new(final_config),
@@ -160,7 +170,10 @@ impl <P, T, CMD, FB> RunnableCommand<P, T, CMD, FB> where P: Send + 'static, T: 
 
         self.pool.execute(move || {
             let is_allowed = command.lock().unwrap().circuit_breaker.check_command_allowed();
-            if is_allowed {
+            if !command.lock().unwrap().config.circuit_breaker_enabled.unwrap_or(true) {
+                let res = (command.lock().unwrap().cmd)(param);
+                tx.send(res).unwrap()
+            } else if is_allowed {
                 let res = (command.lock().unwrap().cmd)(param);
                 command.lock().unwrap().circuit_breaker.register_result(&res);
 
@@ -184,6 +197,7 @@ impl <P, T, CMD, FB> RunnableCommand<P, T, CMD, FB> where P: Send + 'static, T: 
 }
 
 struct CommandParams<P, T, CMD, FB> where T: Send + 'static, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send + 'static, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
+    config: Config,
     cmd: CMD,
     fb: Option<FB>,
     circuit_breaker: CircuitBreaker,

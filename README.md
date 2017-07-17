@@ -131,8 +131,10 @@ fn command_with_error_handlong() {
 
 `error_threshold_percentage` - Minimum error percentage for the circuit to break - Default 50
 
-`buckets_in_window` - Trychis is using a rolling window to track success/error calls, this property defines the amount of buckets in a window (buckets_in_window * bucket_size_in_ms is the overall length in ms of the window) - Default 10
+`buckets_in_window` - Rolling window to track success/error calls, this property defines the amount of buckets in a window (buckets_in_window * bucket_size_in_ms is the overall length in ms of the window) - Default 10
 
 `bucket_size_in_ms` - This property defines the ms a bucket is long, i.e. each x ms a new bucket will be created (buckets_in_window * bucket_size_in_ms is the overall length in ms of the window) - Default 1000
 
 `threadpool_size` - Size of the thread pool used to run the command - Default 10
+
+`circuit_breaker_enabled` - Defines if the circuit breaker is enabled or not - Default true
