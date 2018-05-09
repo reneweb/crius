@@ -41,7 +41,7 @@ impl Window {
     }
 
     pub fn add_point(&mut self, point: Point) {
-        let mut current_bucket = self.update_window_returning_latest_bucket();
+        let current_bucket = self.update_window_returning_latest_bucket();
         current_bucket.points.push(point);
     }
 
