@@ -76,10 +76,10 @@ where
     F: Fn(I) -> Result<O, E> + Sync + Send,
     FB: Fn(E) -> O + Sync + Send,
 {
-    pub config: Config,
     pub cmd: F,
     pub fallback: Option<FB>,
     phantom_data: PhantomData<I>,
+    circuit_breaker: CircuitBreaker,
 }
 
 impl<I, O, E, F, FB> Command<I, O, E, F, FB>
@@ -93,9 +93,9 @@ where
     pub fn define(cmd: F) -> Command<I, O, E, F, FB> {
         return Command {
             cmd: cmd,
-            config: Config::default(),
             fallback: None,
             phantom_data: PhantomData,
+            circuit_breaker: CircuitBreaker::new(Config::default()),
         };
     }
 
@@ -103,67 +103,35 @@ where
         return Command {
             cmd: cmd,
             fallback: Some(fallback),
-            config: Config::default(),
             phantom_data: PhantomData,
+            circuit_breaker: CircuitBreaker::new(Config::default()),
         };
     }
 
-    pub fn config(mut self, config: Config) -> Self {
-        self.config = config;
+    pub fn set_config(mut self, config: Config) -> Self {
+        self.circuit_breaker.config = config;
         return self;
-    }
-
-    pub fn create(self) -> RunnableCommand<I, O, E, F, FB> {
-        return RunnableCommand::new(self);
-    }
-}
-
-pub struct RunnableCommand<I, O, E, F, FB>
-where
-    E: Send + From<CriusError> + 'static,
-    O: Send + 'static,
-    F: Fn(I) -> Result<O, E> + Sync + Send + 'static,
-    FB: Fn(E) -> O + Sync + Send + 'static,
-{
-    command: Command<I, O, E, F, FB>,
-    circuit_breaker: CircuitBreaker,
-}
-
-impl<I, O, E, F, FB> RunnableCommand<I, O, E, F, FB>
-where
-    I: Send + 'static,
-    O: Send + 'static,
-    E: Send + From<CriusError> + 'static,
-    F: Fn(I) -> Result<O, E> + Sync + Send + 'static,
-    FB: Fn(E) -> O + Sync + Send + 'static,
-{
-    fn new(command: Command<I, O, E, F, FB>) -> RunnableCommand<I, O, E, F, FB> {
-        let config = command.config;
-        RunnableCommand {
-            command,
-            circuit_breaker: CircuitBreaker::new(config),
-        }
     }
 
     pub fn run(&mut self, param: I) -> Result<O, E> {
         // Run the command if the breaker is disabled:
-        let enabled = self.command.config.circuit_breaker_enabled;
+        let enabled = self.circuit_breaker.config.circuit_breaker_enabled;
         if !enabled {
-            return (self.command.cmd)(param)
+            return (self.cmd)(param)
         }
 
         // Execute the command if the breaker is enabled and execution
         // is allowed.
         let is_allowed = self.circuit_breaker.check_command_allowed();
         if is_allowed {
-            let result = (self.command.cmd)(param);
+            let result = (self.cmd)(param);
             self.circuit_breaker.register_result(&result);
 
             return match result {
                 Ok(result) => Ok(result),
                 Err(err) => {
                     // If a fallback is configured, use it on error:
-                    if let Some(ref fallback) = self.command.fallback {
+                    if let Some(ref fallback) = self.fallback {
                         Ok(fallback(err))
                     } else {
                         Err(err)
@@ -176,7 +144,7 @@ where
         // fallback (if present) or propagate the rejection as an
         // error:
         let err = E::from(CriusError::ExecutionRejected);
-        if let Some(ref fallback) = self.command.fallback {
+        if let Some(ref fallback) = self.fallback {
             return Ok(fallback(err));
         } else {
             return Err(err);
