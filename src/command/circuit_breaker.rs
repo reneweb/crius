@@ -16,7 +16,7 @@ impl CircuitBreaker {
         let window = Window::new(config);
         return CircuitBreaker {
             circuit_breaker_stats: CircuitBreakerStats {
-                window: window
+                window,
             },
             circuit_open_time: None,
             config: config
@@ -46,19 +46,33 @@ impl CircuitBreaker {
     }
 
     fn should_close_open_circuit(&mut self) -> bool {
-        return self.circuit_open_time.is_some() && self.circuit_open_time.unwrap() <= self.time_to_close_circuit()
+        if let Some(open_time) = self.circuit_open_time {
+            open_time <= self.time_to_close_circuit()
+        } else {
+            false
+        }
     }
 
     fn should_keep_circuit_open(&mut self) -> bool {
-        return self.circuit_open_time.is_some() && self.circuit_open_time.unwrap() > self.time_to_close_circuit()
+        if let Some(open_time) = self.circuit_open_time {
+            open_time > self.time_to_close_circuit()
+        } else {
+            false
+        }
     }
 
     fn should_open_circuit(&mut self) -> bool {
-        return self.circuit_breaker_stats.error_percentage() >= self.config.error_threshold_percentage.unwrap() &&
-            self.circuit_breaker_stats.error_nr() >= self.config.error_threshold.unwrap()
+        let pct_above_threshold = self.circuit_breaker_stats.error_percentage() >=
+            self.config.error_threshold_percentage.unwrap();
+
+        let count_above_threshold = self.circuit_breaker_stats.error_nr() >=
+            self.config.error_threshold.unwrap();
+
+        pct_above_threshold && count_above_threshold
+
     }
 
     fn time_to_close_circuit(&self) -> Instant {
-        return Instant::now() - Duration::from_millis(self.config.circuit_open_ms.unwrap());
+        Instant::now() - Duration::from_millis(self.config.circuit_open_ms.unwrap())
     }
 }

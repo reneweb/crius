@@ -7,7 +7,6 @@ pub struct CircuitBreakerStats {
 }
 
 impl CircuitBreakerStats {
-
     pub fn add_point(&mut self, point: Point) {
         self.window.add_point(point)
     }
@@ -39,11 +38,23 @@ impl CircuitBreakerStats {
 
     pub fn success_nr(&mut self) -> i32 {
         let points = self.window.update_and_get_points();
-        return (points.iter().filter(|&&point| return point == Point::SUCCESS).collect::<Vec<_>>().len()) as i32
+        let success_count = points
+            .iter()
+            .filter(|&&point| return point == Point::SUCCESS)
+            .collect::<Vec<_>>()
+            .len();
+
+        success_count as i32
     }
 
     pub fn error_nr(&mut self) -> i32 {
         let points = self.window.update_and_get_points();
-        return (points.iter().filter(|&&point| return point == Point::FAILURE).collect::<Vec<_>>().len()) as i32
+        let error_count = points
+            .iter()
+            .filter(|&&point| return point == Point::FAILURE)
+            .collect::<Vec<_>>()
+            .len();
+
+        error_count as i32
     }
 }
