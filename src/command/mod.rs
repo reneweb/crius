@@ -3,16 +3,13 @@ mod circuit_breaker_stats;
 mod window;
 pub mod error;
 
-use self::error::reject_error::RejectError;
+use self::error::CriusError;
 use self::circuit_breaker::CircuitBreaker;
-use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc;
 use threadpool::ThreadPool;
 use std::marker::PhantomData;
-
-pub type CommandError = Error + Send + Sync + 'static;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Config {
@@ -69,21 +66,32 @@ impl Config {
     }
 }
 
-pub struct Command<P, T, CMD> where T: Send, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send {
+pub struct Command<I, O, E, F> where
+    O: Send,
+    E: From<CriusError>,
+    F: Fn(I) -> Result<O, E> + Sync + Send {
     pub config: Option<Config>,
-    pub cmd: CMD,
-    phantom_data: PhantomData<P>
+    pub cmd: F,
+    phantom_data: PhantomData<I>
 }
 
-pub struct CommandWithFallback<P, T, CMD, FB> where T: Send, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send, FB: Fn(Box<CommandError>) -> T + Sync + Send {
-    pub fb: FB,
+pub struct CommandWithFallback<I, O, E, F, FB> where
+    O: Send,
+    E: From<CriusError>,
+    F: Fn(I) -> Result<O, E> + Sync + Send,
+    FB: Fn(E) -> O + Sync + Send {
+    pub fb: FB, // TODO: rename to fallback
     pub config: Option<Config>,
-    pub cmd: CMD,
-    phantom_data: PhantomData<P>
+    pub cmd: F,
+    phantom_data: PhantomData<I>
 }
 
-impl <P, T, CMD> Command<P, T, CMD> where T: Send + 'static, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send {
-    pub fn define(cmd: CMD) -> Command<P, T, CMD> {
+impl <I, O, E, F> Command<I, O, E, F> where
+    I: Send + 'static,
+    O: Send + 'static,
+    E: Send + From<CriusError> + 'static,
+    F: Fn(I) -> Result<O, E> + Sync + Send, {
+    pub fn define(cmd: F) -> Command<I, O, E, F> {
         return Command {
             cmd: cmd,
             config: None,
@@ -91,7 +99,9 @@ impl <P, T, CMD> Command<P, T, CMD> where T: Send + 'static, CMD: Fn(P) -> Resul
         }
     }
 
-    pub fn define_with_fallback<FB>(cmd: CMD, fallback: FB) -> CommandWithFallback<P, T, CMD, FB> where FB: Fn(Box<CommandError>) -> T + Sync + Send {
+    pub fn define_with_fallback<FB>(cmd: F, fallback: FB)
+                                    -> CommandWithFallback<I, O, E, F, FB>
+        where FB: Fn(E) -> O + Sync + Send {
         return CommandWithFallback {
             cmd: cmd,
             fb: fallback,
@@ -99,27 +109,30 @@ impl <P, T, CMD> Command<P, T, CMD> where T: Send + 'static, CMD: Fn(P) -> Resul
             phantom_data: PhantomData
         }
     }
-}
-
-impl <P, T, CMD> Command<P, T, CMD> where P: Send + 'static, T: Send + 'static, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send {
 
     pub fn config(mut self, config: Config) -> Self {
         self.config = Some(config);
         return self
     }
 
-    pub fn create(self) -> RunnableCommand<P, T, CMD, fn(Box<CommandError>) -> T> {
+    pub fn create(self) -> RunnableCommand<I, O, E, F, fn(E) -> O> {
         return RunnableCommand::new(self.cmd, None, self.config)
     }
+
 }
 
-impl <P, T, CMD, FB> CommandWithFallback<P, T, CMD, FB> where P: Send + 'static, T: Send + 'static, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
+impl <I, O, E, F, FB> CommandWithFallback<I, O, E, F, FB> where
+    I: Send + 'static,
+    O: Send + 'static,
+    E: Send + From<CriusError> + 'static,
+    F: Fn(I) -> Result<O, E> + Sync + Send,
+    FB: Fn(E) -> O + Sync + Send + 'static {
     pub fn config(mut self, config: Config) -> Self {
         self.config = Some(config);
         return self
     }
 
-    pub fn create(self) -> RunnableCommand<P, T, CMD, FB> {
+    pub fn create(self) -> RunnableCommand<I, O, E, F, FB> {
         return RunnableCommand::new(self.cmd, Some(self.fb), self.config)
     }
 }
@@ -132,16 +145,24 @@ const DEFAULT_CIRCUIT_OPEN_MS: u64 = 5000;
 const DEFAULT_THREADPOOL_SIZE: i32 = 10;
 const DEFAULT_CIRCUIT_BREAKER_ENABLED: bool = true;
 
-pub struct RunnableCommand<P, T, CMD, FB> where T: Send + 'static, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send + 'static, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
-    command_params: Arc<Mutex<CommandParams<P, T, CMD, FB>>>,
+pub struct RunnableCommand<I, O, E, F, FB> where
+    O: Send + 'static,
+    F: Fn(I) -> Result<O, E> + Sync + Send + 'static,
+    FB: Fn(E) -> O + Sync + Send + 'static {
+    command_params: Arc<Mutex<CommandParams<I, O, E, F, FB>>>,
     pool: ThreadPool
 }
 
-impl <P, T, CMD, FB> RunnableCommand<P, T, CMD, FB> where P: Send + 'static, T: Send + 'static, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send + 'static, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
+impl <I, O, E, F, FB> RunnableCommand<I, O, E, F, FB> where
+    I: Send + 'static,
+    O: Send + 'static,
+    E: Send + From<CriusError> + 'static,
+    F: Fn(I) -> Result<O, E> + Sync + Send + 'static,
+    FB: Fn(E) -> O + Sync + Send + 'static {
 
-    fn new(cmd: CMD,
+    fn new(cmd: F,
            fb: Option<FB>,
-           config: Option<Config>) -> RunnableCommand<P, T, CMD, FB> {
+           config: Option<Config>) -> RunnableCommand<I, O, E, F, FB> {
         let final_config = Config {
             error_threshold: config.and_then(|c| c.error_threshold).or(Some(DEFAULT_ERROR_THRESHOLD)),
             error_threshold_percentage: config.and_then(|c| c.error_threshold_percentage).or(Some(DEFAULT_ERROR_THRESHOLD_PERCENTAGE)),
@@ -164,7 +185,7 @@ impl <P, T, CMD, FB> RunnableCommand<P, T, CMD, FB> where P: Send + 'static, T: 
         }
     }
 
-    pub fn run(&mut self, param: P) -> Receiver<Result<T, Box<CommandError>>> {
+    pub fn run(&mut self, param: I) -> Receiver<Result<O, E>> {
         let command = self.command_params.clone();
         let (tx, rx) = mpsc::channel();
 
@@ -184,22 +205,26 @@ impl <P, T, CMD, FB> RunnableCommand<P, T, CMD, FB> where P: Send + 'static, T: 
                     tx.send(res).unwrap()
                 }
             } else if command.lock().unwrap().fb.is_some() {
-                let res = (command.lock().unwrap().fb.as_ref().unwrap())(Box::new(RejectError {}));
-                tx.send(Ok(res)).unwrap()
+                let err = E::from(CriusError::ExecutionRejected);
+                let result = (command.lock().unwrap().fb.as_ref().unwrap())(err);
+                tx.send(Ok(result)).ok();
             } else {
-                tx.send(Err(Box::new(RejectError {}) as Box<CommandError>)).unwrap()
+                let err = E::from(CriusError::ExecutionRejected);
+                tx.send(Err(err)).ok();
             }
-
         });
 
         return rx
     }
 }
 
-struct CommandParams<P, T, CMD, FB> where T: Send + 'static, CMD: Fn(P) -> Result<T, Box<CommandError>> + Sync + Send + 'static, FB: Fn(Box<CommandError>) -> T + Sync + Send + 'static {
+struct CommandParams<I, O, E, F, FB> where
+    O: Send + 'static,
+    F: Fn(I) -> Result<O, E> + Sync + Send + 'static,
+    FB: Fn(E) -> O + Sync + Send + 'static {
     config: Config,
-    cmd: CMD,
+    cmd: F,
     fb: Option<FB>,
     circuit_breaker: CircuitBreaker,
-    phantom_data: PhantomData<P>
+    phantom_data: PhantomData<I>,
 }

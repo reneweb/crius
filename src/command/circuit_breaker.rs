@@ -12,7 +12,6 @@ pub struct CircuitBreaker {
 }
 
 impl CircuitBreaker {
-
     pub fn new(config: Config) -> CircuitBreaker {
         let window = Window::new(config);
         return CircuitBreaker {
