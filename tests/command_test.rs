@@ -1,7 +1,6 @@
 extern crate crius;
 
 mod circuit_breaker {
-
     use crius::command::Config;
     use crius::command::Command;
     use crius::error::CriusError;
@@ -44,8 +43,8 @@ mod circuit_breaker {
 
     #[test]
     fn runs_command() {
-        let rx = TestCommand::<(), u8>::define(|_| Ok(5)).create().run(());
-        assert_eq!(5, rx.recv().unwrap().unwrap());
+        let result = TestCommand::<(), u8>::define(|_| Ok(5)).create().run(());
+        assert_eq!(5, result.unwrap());
     }
 
     #[test]
@@ -53,18 +52,18 @@ mod circuit_breaker {
         let mut cmd = TestCommand::<(), u8>::define(|_| return Ok(5)).create();
 
         for _ in 0..5 {
-            let rx = cmd.run(());
-            assert_eq!(5, rx.recv().unwrap().unwrap());
+            let result = cmd.run(());
+            assert_eq!(5, result.unwrap());
         }
     }
 
     #[test]
     fn runs_command_with_param() {
-        let rx = TestCommand::<u8, u8>::define(|param| Ok(param))
+        let result = TestCommand::<u8, u8>::define(|param| Ok(param))
             .create()
             .run(5);
 
-        assert_eq!(5, rx.recv().unwrap().unwrap());
+        assert_eq!(5, result.unwrap());
     }
 
     #[test]
@@ -74,13 +73,11 @@ mod circuit_breaker {
             .create();
 
         for _ in 0..5 {
-            let rx = cmd.run(());
-            let err = rx.recv().unwrap().unwrap_err();
+            let err = cmd.run(()).expect_err("Expected internal error");
             assert_eq!(TestError::Internal, err); // Fallback by returned error
         }
 
-        let rx = cmd.run(());
-        let err = rx.recv().unwrap().unwrap_err();
+        let err = cmd.run(()).expect_err("Expected external error");
         assert_eq!(TestError::External, err); // Fallback by reject error
     }
 
@@ -90,8 +87,8 @@ mod circuit_breaker {
             Command::define_with_fallback(|_| return Err(TestError::Internal), |_| { return 5; })
                 .create();
 
-        let rx = cmd.run(());
-        assert_eq!(5, rx.recv().unwrap().unwrap());
+        let result = cmd.run(());
+        assert_eq!(5, result.unwrap());
     }
 
     #[test]
@@ -102,30 +99,30 @@ mod circuit_breaker {
                 .create();
 
         for _ in 0..5 {
-            let rx = cmd.run(());
-            assert_eq!(5, rx.recv().unwrap().unwrap()); // Fallback by returned error
+            let result = cmd.run(());
+            assert_eq!(5, result.unwrap()); // Fallback by returned error
         }
 
-        let rx = cmd.run(());
-        assert_eq!(5, rx.recv().unwrap().unwrap()); // Fallback by reject error
+        let result = cmd.run(());
+        assert_eq!(5, result.unwrap()); // Fallback by reject error
     }
 
     #[test]
     fn handles_lots_of_calls() {
         let mut cmd = TestCommand::<(), u8>::define(|_| {
-            let ten_millis = time::Duration::from_millis(10);
-            thread::sleep(ten_millis);
+            let two_millis = time::Duration::from_millis(2);
+            thread::sleep(two_millis);
 
             return Ok(5);
         }).create();
 
-        let mut rxs = Vec::new();
+        let mut results = Vec::new();
         for _ in 0..1000 {
-            rxs.push(cmd.run(()));
+            results.push(cmd.run(()));
         }
 
-        for rx in rxs {
-            assert_eq!(5, rx.recv().unwrap().unwrap());
+        for result in results {
+            assert_eq!(5, result.unwrap());
         }
     }
 }
