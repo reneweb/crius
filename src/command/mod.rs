@@ -66,75 +66,50 @@ impl Config {
     }
 }
 
-pub struct Command<I, O, E, F> where
-    O: Send,
-    E: From<CriusError>,
-    F: Fn(I) -> Result<O, E> + Sync + Send {
-    pub config: Option<Config>,
-    pub cmd: F,
-    phantom_data: PhantomData<I>
-}
-
-pub struct CommandWithFallback<I, O, E, F, FB> where
+pub struct Command<I, O, E, F, FB> where
     O: Send,
     E: From<CriusError>,
     F: Fn(I) -> Result<O, E> + Sync + Send,
     FB: Fn(E) -> O + Sync + Send {
-    pub fb: FB, // TODO: rename to fallback
     pub config: Option<Config>,
     pub cmd: F,
+    pub fallback: Option<FB>,
     phantom_data: PhantomData<I>
 }
 
-impl <I, O, E, F> Command<I, O, E, F> where
-    I: Send + 'static,
-    O: Send + 'static,
-    E: Send + From<CriusError> + 'static,
-    F: Fn(I) -> Result<O, E> + Sync + Send, {
-    pub fn define(cmd: F) -> Command<I, O, E, F> {
-        return Command {
-            cmd: cmd,
-            config: None,
-            phantom_data: PhantomData
-        }
-    }
-
-    pub fn define_with_fallback<FB>(cmd: F, fallback: FB)
-                                    -> CommandWithFallback<I, O, E, F, FB>
-        where FB: Fn(E) -> O + Sync + Send {
-        return CommandWithFallback {
-            cmd: cmd,
-            fb: fallback,
-            config: None,
-            phantom_data: PhantomData
-        }
-    }
-
-    pub fn config(mut self, config: Config) -> Self {
-        self.config = Some(config);
-        return self
-    }
-
-    pub fn create(self) -> RunnableCommand<I, O, E, F, fn(E) -> O> {
-        return RunnableCommand::new(self.cmd, None, self.config)
-    }
-
-}
-
-impl <I, O, E, F, FB> CommandWithFallback<I, O, E, F, FB> where
+impl <I, O, E, F, FB> Command<I, O, E, F, FB> where
     I: Send + 'static,
     O: Send + 'static,
     E: Send + From<CriusError> + 'static,
     F: Fn(I) -> Result<O, E> + Sync + Send,
-    FB: Fn(E) -> O + Sync + Send + 'static {
+    FB: Fn(E) -> O + Sync + Send {
+    pub fn define(cmd: F) -> Command<I, O, E, F, FB> {
+        return Command {
+            cmd: cmd,
+            config: None,
+            fallback: None,
+            phantom_data: PhantomData
+        }
+    }
+
+    pub fn define_with_fallback(cmd: F, fallback: FB) -> Command<I, O, E, F, FB> {
+        return Command {
+            cmd: cmd,
+            fallback: Some(fallback),
+            config: None,
+            phantom_data: PhantomData
+        }
+    }
+
     pub fn config(mut self, config: Config) -> Self {
         self.config = Some(config);
         return self
     }
 
     pub fn create(self) -> RunnableCommand<I, O, E, F, FB> {
-        return RunnableCommand::new(self.cmd, Some(self.fb), self.config)
+        return RunnableCommand::new(self.cmd, self.fallback, self.config)
     }
+
 }
 
 const DEFAULT_ERROR_THRESHOLD: i32 = 10;
