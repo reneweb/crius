@@ -16,10 +16,10 @@ struct Bucket {
 
 impl Bucket {
     fn new() -> Bucket {
-        return Bucket {
+        Bucket {
             points: Vec::new(),
             timestamp: Instant::now(),
-        };
+        }
     }
 }
 
@@ -32,11 +32,11 @@ pub struct Window {
 
 impl Window {
     pub fn new(config: Config) -> Self {
-        return Window {
+        Window {
             buckets: VecDeque::new(),
             bucket_ms: Duration::from_millis(config.bucket_size_in_ms),
             buckets_nr: config.buckets_in_window,
-        };
+        }
     }
 
     pub fn add_point(&mut self, point: Point) {
@@ -50,43 +50,39 @@ impl Window {
 
     pub fn update_and_get_points(&mut self) -> Vec<Point> {
         self.update_window_returning_latest_bucket();
-        let points = self.buckets.iter().fold(vec![], |mut acc, bucket| {
+        self.buckets.iter().fold(vec![], |mut acc, bucket| {
             acc.extend(&bucket.points);
             return acc;
-        });
-        return points;
+        })
     }
 
     fn update_window_returning_latest_bucket(&mut self) -> &mut Bucket {
         let now = Instant::now();
+        let latest_threshold = self.buckets.back()
+            .map(|bucket| bucket.timestamp + self.bucket_ms);
 
-        let has_buckets = self.buckets.back_mut().is_some();
-        if !has_buckets {
+        if let Some(threshold) = latest_threshold {
+            // Return the latest bucket if it is still current:
+            if threshold > now {
+                return self.buckets.back_mut().unwrap();
+            }
+
+            // Otherwise create and return a new bucket:
+            let new_bucket = Bucket {
+                points: Vec::new(),
+                timestamp: threshold,
+            };
+
+            self.buckets.push_back(new_bucket);
+            if self.buckets.len() > self.buckets_nr as usize {
+                self.buckets.pop_front();
+            }
+            return self.buckets.back_mut().unwrap();
+        } else {
+            // Create a bucket if there aren't any in the window currently:
             let first_bucket = Bucket::new();
             self.buckets.push_back(first_bucket);
             return self.buckets.back_mut().unwrap();
-        } else {
-            let latest_bucket_timestamp = self.get_latest_bucket().unwrap().timestamp;
-            loop {
-                if latest_bucket_timestamp + self.bucket_ms > now {
-                    return self.get_latest_bucket().unwrap();
-                } else {
-                    let new_bucket = Bucket {
-                        points: Vec::new(),
-                        timestamp: latest_bucket_timestamp + self.bucket_ms,
-                    };
-                    self.buckets.push_back(new_bucket);
-                    if self.buckets.len() > self.buckets_nr as usize {
-                        self.buckets.pop_front();
-                    }
-
-                    return self.buckets.back_mut().unwrap();
-                }
-            }
         }
-    }
-
-    fn get_latest_bucket(&mut self) -> Option<&mut Bucket> {
-        return self.buckets.back_mut();
     }
 }
