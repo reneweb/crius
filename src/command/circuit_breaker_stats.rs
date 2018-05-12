@@ -3,7 +3,7 @@ use command::window::Point;
 
 #[derive(Clone, Debug)]
 pub struct CircuitBreakerStats {
-    pub window: Window
+    pub window: Window,
 }
 
 impl CircuitBreakerStats {
@@ -21,7 +21,7 @@ impl CircuitBreakerStats {
         if success_nr == 0 {
             return 0;
         } else {
-            return (success_nr / points.len() as i32) * 100
+            return (success_nr / points.len() as i32) * 100;
         }
     }
 
@@ -32,7 +32,7 @@ impl CircuitBreakerStats {
         if error_nr == 0 {
             return 0;
         } else {
-            return (error_nr / points.len() as i32) * 100
+            return (error_nr / points.len() as i32) * 100;
         }
     }
 
