@@ -34,8 +34,8 @@ impl Window {
     pub fn new(config: Config) -> Self {
         return Window {
             buckets: VecDeque::new(),
-            bucket_ms: Duration::from_millis(config.bucket_size_in_ms.unwrap()),
-            buckets_nr: config.buckets_in_window.unwrap(),
+            bucket_ms: Duration::from_millis(config.bucket_size_in_ms),
+            buckets_nr: config.buckets_in_window,
         };
     }
 

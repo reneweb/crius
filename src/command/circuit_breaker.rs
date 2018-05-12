@@ -61,16 +61,16 @@ impl CircuitBreaker {
 
     fn should_open_circuit(&mut self) -> bool {
         let pct_above_threshold = self.circuit_breaker_stats.error_percentage() >=
-            self.config.error_threshold_percentage.unwrap();
+            self.config.error_threshold_percentage;
 
         let count_above_threshold = self.circuit_breaker_stats.error_nr() >=
-            self.config.error_threshold.unwrap();
+            self.config.error_threshold;
 
         pct_above_threshold && count_above_threshold
 
     }
 
     fn time_to_close_circuit(&self) -> Instant {
-        Instant::now() - Duration::from_millis(self.config.circuit_open_ms.unwrap())
+        Instant::now() - Duration::from_millis(self.config.circuit_open_ms)
     }
 }
