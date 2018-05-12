@@ -5,10 +5,6 @@ mod window;
 use error::CriusError;
 use self::circuit_breaker::CircuitBreaker;
 use std::marker::PhantomData;
-use std::sync::mpsc::Receiver;
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
-use threadpool::ThreadPool;
 
 const DEFAULT_ERROR_THRESHOLD: i32 = 10;
 const DEFAULT_ERROR_THRESHOLD_PERCENTAGE: i32 = 50;
@@ -80,7 +76,7 @@ where
     F: Fn(I) -> Result<O, E> + Sync + Send,
     FB: Fn(E) -> O + Sync + Send,
 {
-    pub config: Option<Config>,
+    pub config: Config,
     pub cmd: F,
     pub fallback: Option<FB>,
     phantom_data: PhantomData<I>,
@@ -97,7 +93,7 @@ where
     pub fn define(cmd: F) -> Command<I, O, E, F, FB> {
         return Command {
             cmd: cmd,
-            config: None,
+            config: Config::default(),
             fallback: None,
             phantom_data: PhantomData,
         };
@@ -107,29 +103,30 @@ where
         return Command {
             cmd: cmd,
             fallback: Some(fallback),
-            config: None,
+            config: Config::default(),
             phantom_data: PhantomData,
         };
     }
 
     pub fn config(mut self, config: Config) -> Self {
-        self.config = Some(config);
+        self.config = config;
         return self;
     }
 
     pub fn create(self) -> RunnableCommand<I, O, E, F, FB> {
-        return RunnableCommand::new(self.cmd, self.fallback, self.config);
+        return RunnableCommand::new(self);
     }
 }
 
 pub struct RunnableCommand<I, O, E, F, FB>
 where
+    E: Send + From<CriusError> + 'static,
     O: Send + 'static,
     F: Fn(I) -> Result<O, E> + Sync + Send + 'static,
     FB: Fn(E) -> O + Sync + Send + 'static,
 {
-    command_params: Arc<Mutex<CommandParams<I, O, E, F, FB>>>,
-    pool: ThreadPool,
+    command: Command<I, O, E, F, FB>,
+    circuit_breaker: CircuitBreaker,
 }
 
 impl<I, O, E, F, FB> RunnableCommand<I, O, E, F, FB>
@@ -140,76 +137,49 @@ where
     F: Fn(I) -> Result<O, E> + Sync + Send + 'static,
     FB: Fn(E) -> O + Sync + Send + 'static,
 {
-    fn new(cmd: F, fb: Option<FB>, config: Option<Config>)
-           -> RunnableCommand<I, O, E, F, FB> {
-        let config = config.unwrap_or(Config::default());
+    fn new(command: Command<I, O, E, F, FB>) -> RunnableCommand<I, O, E, F, FB> {
+        let config = command.config;
         RunnableCommand {
-            command_params: Arc::new(Mutex::new(CommandParams {
-                config,
-                cmd,
-                fb,
-                circuit_breaker: CircuitBreaker::new(config),
-                phantom_data: PhantomData,
-            })),
-            pool: ThreadPool::new(1),
+            command,
+            circuit_breaker: CircuitBreaker::new(config),
         }
     }
 
-    pub fn run(&mut self, param: I) -> Receiver<Result<O, E>> {
-        let command = self.command_params.clone();
-        let (tx, rx) = mpsc::channel();
+    pub fn run(&mut self, param: I) -> Result<O, E> {
+        // Run the command if the breaker is disabled:
+        let enabled = self.command.config.circuit_breaker_enabled;
+        if !enabled {
+            return (self.command.cmd)(param)
+        }
 
-        self.pool.execute(move || {
-            let is_allowed = command
-                .lock()
-                .unwrap()
-                .circuit_breaker
-                .check_command_allowed();
-            if !command
-                .lock()
-                .unwrap()
-                .config
-                .circuit_breaker_enabled
-            {
-                let res = (command.lock().unwrap().cmd)(param);
-                tx.send(res).unwrap()
-            } else if is_allowed {
-                let res = (command.lock().unwrap().cmd)(param);
-                command.lock().unwrap().circuit_breaker.register_result(
-                    &res,
-                );
+        // Execute the command if the breaker is enabled and execution
+        // is allowed.
+        let is_allowed = self.circuit_breaker.check_command_allowed();
+        if is_allowed {
+            let result = (self.command.cmd)(param);
+            self.circuit_breaker.register_result(&result);
 
-                if command.lock().unwrap().fb.is_some() && res.is_err() {
-                    let final_res = Ok(res.unwrap_or_else(
-                        command.lock().unwrap().fb.as_ref().unwrap(),
-                    ));
-                    tx.send(final_res).unwrap()
-                } else {
-                    tx.send(res).unwrap()
+            return match result {
+                Ok(result) => Ok(result),
+                Err(err) => {
+                    // If a fallback is configured, use it on error:
+                    if let Some(ref fallback) = self.command.fallback {
+                        Ok(fallback(err))
+                    } else {
+                        Err(err)
+                    }
                 }
-            } else if command.lock().unwrap().fb.is_some() {
-                let err = E::from(CriusError::ExecutionRejected);
-                let result = (command.lock().unwrap().fb.as_ref().unwrap())(err);
-                tx.send(Ok(result)).ok();
-            } else {
-                let err = E::from(CriusError::ExecutionRejected);
-                tx.send(Err(err)).ok();
-            }
-        });
+            };
+        }
 
-        return rx;
+        // If execution is rejected, either run the configured
+        // fallback (if present) or propagate the rejection as an
+        // error:
+        let err = E::from(CriusError::ExecutionRejected);
+        if let Some(ref fallback) = self.command.fallback {
+            return Ok(fallback(err));
+        } else {
+            return Err(err);
+        }
     }
-}
-
-struct CommandParams<I, O, E, F, FB>
-where
-    O: Send + 'static,
-    F: Fn(I) -> Result<O, E> + Sync + Send + 'static,
-    FB: Fn(E) -> O + Sync + Send + 'static,
-{
-    config: Config,
-    cmd: F,
-    fb: Option<FB>,
-    circuit_breaker: CircuitBreaker,
-    phantom_data: PhantomData<I>,
 }
