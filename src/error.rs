@@ -11,8 +11,9 @@ pub enum CriusError {
 impl fmt::Display for CriusError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            CriusError::ExecutionRejected =>
+            CriusError::ExecutionRejected => {
                 write!(f, "Rejected command execution due to open breaker")
+            }
         }
 
     }
@@ -27,8 +28,7 @@ impl fmt::Debug for CriusError {
 impl Error for CriusError {
     fn description(&self) -> &str {
         match *self {
-            CriusError::ExecutionRejected =>
-                "Rejected command execution due to open breaker"
+            CriusError::ExecutionRejected => "Rejected command execution due to open breaker",
         }
     }
 }

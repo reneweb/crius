@@ -15,10 +15,10 @@ pub struct Config {
     pub error_threshold: Option<i32>,
     pub error_threshold_percentage: Option<i32>,
     pub buckets_in_window: Option<i32>,
-    pub bucket_size_in_ms:  Option<u64>,
+    pub bucket_size_in_ms: Option<u64>,
     pub circuit_open_ms: Option<u64>,
     pub threadpool_size: Option<i32>,
-    pub circuit_breaker_enabled: Option<bool>
+    pub circuit_breaker_enabled: Option<bool>,
 }
 
 impl Config {
@@ -30,8 +30,8 @@ impl Config {
             bucket_size_in_ms: None,
             circuit_open_ms: None,
             threadpool_size: None,
-            circuit_breaker_enabled: None
-        }
+            circuit_breaker_enabled: None,
+        };
     }
 
     pub fn error_threshold(&mut self, error_threshold: i32) -> &mut Self {
@@ -65,30 +65,34 @@ impl Config {
     }
 }
 
-pub struct Command<I, O, E, F, FB> where
+pub struct Command<I, O, E, F, FB>
+where
     O: Send,
     E: From<CriusError>,
     F: Fn(I) -> Result<O, E> + Sync + Send,
-    FB: Fn(E) -> O + Sync + Send {
+    FB: Fn(E) -> O + Sync + Send,
+{
     pub config: Option<Config>,
     pub cmd: F,
     pub fallback: Option<FB>,
-    phantom_data: PhantomData<I>
+    phantom_data: PhantomData<I>,
 }
 
-impl <I, O, E, F, FB> Command<I, O, E, F, FB> where
+impl<I, O, E, F, FB> Command<I, O, E, F, FB>
+where
     I: Send + 'static,
     O: Send + 'static,
     E: Send + From<CriusError> + 'static,
     F: Fn(I) -> Result<O, E> + Sync + Send,
-    FB: Fn(E) -> O + Sync + Send {
+    FB: Fn(E) -> O + Sync + Send,
+{
     pub fn define(cmd: F) -> Command<I, O, E, F, FB> {
         return Command {
             cmd: cmd,
             config: None,
             fallback: None,
-            phantom_data: PhantomData
-        }
+            phantom_data: PhantomData,
+        };
     }
 
     pub fn define_with_fallback(cmd: F, fallback: FB) -> Command<I, O, E, F, FB> {
@@ -96,19 +100,18 @@ impl <I, O, E, F, FB> Command<I, O, E, F, FB> where
             cmd: cmd,
             fallback: Some(fallback),
             config: None,
-            phantom_data: PhantomData
-        }
+            phantom_data: PhantomData,
+        };
     }
 
     pub fn config(mut self, config: Config) -> Self {
         self.config = Some(config);
-        return self
+        return self;
     }
 
     pub fn create(self) -> RunnableCommand<I, O, E, F, FB> {
-        return RunnableCommand::new(self.cmd, self.fallback, self.config)
+        return RunnableCommand::new(self.cmd, self.fallback, self.config);
     }
-
 }
 
 const DEFAULT_ERROR_THRESHOLD: i32 = 10;
@@ -119,32 +122,47 @@ const DEFAULT_CIRCUIT_OPEN_MS: u64 = 5000;
 const DEFAULT_THREADPOOL_SIZE: i32 = 10;
 const DEFAULT_CIRCUIT_BREAKER_ENABLED: bool = true;
 
-pub struct RunnableCommand<I, O, E, F, FB> where
+pub struct RunnableCommand<I, O, E, F, FB>
+where
     O: Send + 'static,
     F: Fn(I) -> Result<O, E> + Sync + Send + 'static,
-    FB: Fn(E) -> O + Sync + Send + 'static {
+    FB: Fn(E) -> O + Sync + Send + 'static,
+{
     command_params: Arc<Mutex<CommandParams<I, O, E, F, FB>>>,
-    pool: ThreadPool
+    pool: ThreadPool,
 }
 
-impl <I, O, E, F, FB> RunnableCommand<I, O, E, F, FB> where
+impl<I, O, E, F, FB> RunnableCommand<I, O, E, F, FB>
+where
     I: Send + 'static,
     O: Send + 'static,
     E: Send + From<CriusError> + 'static,
     F: Fn(I) -> Result<O, E> + Sync + Send + 'static,
-    FB: Fn(E) -> O + Sync + Send + 'static {
-
-    fn new(cmd: F,
-           fb: Option<FB>,
-           config: Option<Config>) -> RunnableCommand<I, O, E, F, FB> {
+    FB: Fn(E) -> O + Sync + Send + 'static,
+{
+    fn new(cmd: F, fb: Option<FB>, config: Option<Config>) -> RunnableCommand<I, O, E, F, FB> {
         let final_config = Config {
-            error_threshold: config.and_then(|c| c.error_threshold).or(Some(DEFAULT_ERROR_THRESHOLD)),
-            error_threshold_percentage: config.and_then(|c| c.error_threshold_percentage).or(Some(DEFAULT_ERROR_THRESHOLD_PERCENTAGE)),
-            buckets_in_window: config.and_then(|c| c.buckets_in_window).or(Some(DEFAULT_BUCKETS_IN_WINDOW)),
-            bucket_size_in_ms: config.and_then(|c| c.bucket_size_in_ms).or(Some(DEFAULT_BUCKET_SIZE_IN_MS)),
-            circuit_open_ms: config.and_then(|c| c.circuit_open_ms).or(Some(DEFAULT_CIRCUIT_OPEN_MS)),
-            threadpool_size: config.and_then(|c| c.threadpool_size).or(Some(DEFAULT_THREADPOOL_SIZE)),
-            circuit_breaker_enabled: config.and_then(|c| c.circuit_breaker_enabled).or(Some(DEFAULT_CIRCUIT_BREAKER_ENABLED))
+            error_threshold: config.and_then(|c| c.error_threshold).or(Some(
+                DEFAULT_ERROR_THRESHOLD,
+            )),
+            error_threshold_percentage: config.and_then(|c| c.error_threshold_percentage).or(Some(
+                DEFAULT_ERROR_THRESHOLD_PERCENTAGE,
+            )),
+            buckets_in_window: config.and_then(|c| c.buckets_in_window).or(Some(
+                DEFAULT_BUCKETS_IN_WINDOW,
+            )),
+            bucket_size_in_ms: config.and_then(|c| c.bucket_size_in_ms).or(Some(
+                DEFAULT_BUCKET_SIZE_IN_MS,
+            )),
+            circuit_open_ms: config.and_then(|c| c.circuit_open_ms).or(Some(
+                DEFAULT_CIRCUIT_OPEN_MS,
+            )),
+            threadpool_size: config.and_then(|c| c.threadpool_size).or(Some(
+                DEFAULT_THREADPOOL_SIZE,
+            )),
+            circuit_breaker_enabled: config.and_then(|c| c.circuit_breaker_enabled).or(Some(
+                DEFAULT_CIRCUIT_BREAKER_ENABLED,
+            )),
         };
 
         return RunnableCommand {
@@ -152,11 +170,11 @@ impl <I, O, E, F, FB> RunnableCommand<I, O, E, F, FB> where
                 config: final_config,
                 cmd: cmd,
                 fb: fb,
-                circuit_breaker:CircuitBreaker::new(final_config),
-                phantom_data: PhantomData
+                circuit_breaker: CircuitBreaker::new(final_config),
+                phantom_data: PhantomData,
             })),
-            pool: ThreadPool::new(1)
-        }
+            pool: ThreadPool::new(1),
+        };
     }
 
     pub fn run(&mut self, param: I) -> Receiver<Result<O, E>> {
@@ -164,16 +182,30 @@ impl <I, O, E, F, FB> RunnableCommand<I, O, E, F, FB> where
         let (tx, rx) = mpsc::channel();
 
         self.pool.execute(move || {
-            let is_allowed = command.lock().unwrap().circuit_breaker.check_command_allowed();
-            if !command.lock().unwrap().config.circuit_breaker_enabled.unwrap_or(true) {
+            let is_allowed = command
+                .lock()
+                .unwrap()
+                .circuit_breaker
+                .check_command_allowed();
+            if !command
+                .lock()
+                .unwrap()
+                .config
+                .circuit_breaker_enabled
+                .unwrap_or(true)
+            {
                 let res = (command.lock().unwrap().cmd)(param);
                 tx.send(res).unwrap()
             } else if is_allowed {
                 let res = (command.lock().unwrap().cmd)(param);
-                command.lock().unwrap().circuit_breaker.register_result(&res);
+                command.lock().unwrap().circuit_breaker.register_result(
+                    &res,
+                );
 
                 if command.lock().unwrap().fb.is_some() && res.is_err() {
-                    let final_res = Ok(res.unwrap_or_else(command.lock().unwrap().fb.as_ref().unwrap()));
+                    let final_res = Ok(res.unwrap_or_else(
+                        command.lock().unwrap().fb.as_ref().unwrap(),
+                    ));
                     tx.send(final_res).unwrap()
                 } else {
                     tx.send(res).unwrap()
@@ -188,14 +220,16 @@ impl <I, O, E, F, FB> RunnableCommand<I, O, E, F, FB> where
             }
         });
 
-        return rx
+        return rx;
     }
 }
 
-struct CommandParams<I, O, E, F, FB> where
+struct CommandParams<I, O, E, F, FB>
+where
     O: Send + 'static,
     F: Fn(I) -> Result<O, E> + Sync + Send + 'static,
-    FB: Fn(E) -> O + Sync + Send + 'static {
+    FB: Fn(E) -> O + Sync + Send + 'static,
+{
     config: Config,
     cmd: F,
     fb: Option<FB>,

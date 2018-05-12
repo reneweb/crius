@@ -5,21 +5,21 @@ use command::Config;
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum Point {
     SUCCESS,
-    FAILURE
+    FAILURE,
 }
 
 #[derive(Clone, Debug)]
 struct Bucket {
     points: Vec<Point>,
-    timestamp: Instant
+    timestamp: Instant,
 }
 
 impl Bucket {
     fn new() -> Bucket {
         return Bucket {
             points: Vec::new(),
-            timestamp: Instant::now()
-        }
+            timestamp: Instant::now(),
+        };
     }
 }
 
@@ -27,17 +27,16 @@ impl Bucket {
 pub struct Window {
     buckets: VecDeque<Bucket>,
     bucket_ms: Duration,
-    buckets_nr: i32
+    buckets_nr: i32,
 }
 
 impl Window {
-
     pub fn new(config: Config) -> Self {
         return Window {
             buckets: VecDeque::new(),
             bucket_ms: Duration::from_millis(config.bucket_size_in_ms.unwrap()),
-            buckets_nr: config.buckets_in_window.unwrap()
-        }
+            buckets_nr: config.buckets_in_window.unwrap(),
+        };
     }
 
     pub fn add_point(&mut self, point: Point) {
@@ -53,7 +52,7 @@ impl Window {
         self.update_window_returning_latest_bucket();
         let points = self.buckets.iter().fold(vec![], |mut acc, bucket| {
             acc.extend(&bucket.points);
-            return acc
+            return acc;
         });
         return points;
     }
@@ -65,30 +64,29 @@ impl Window {
         if !has_buckets {
             let first_bucket = Bucket::new();
             self.buckets.push_back(first_bucket);
-            return self.buckets.back_mut().unwrap()
+            return self.buckets.back_mut().unwrap();
         } else {
             let latest_bucket_timestamp = self.get_latest_bucket().unwrap().timestamp;
             loop {
                 if latest_bucket_timestamp + self.bucket_ms > now {
-                    return self.get_latest_bucket().unwrap()
+                    return self.get_latest_bucket().unwrap();
                 } else {
                     let new_bucket = Bucket {
                         points: Vec::new(),
-                        timestamp: latest_bucket_timestamp + self.bucket_ms
+                        timestamp: latest_bucket_timestamp + self.bucket_ms,
                     };
                     self.buckets.push_back(new_bucket);
                     if self.buckets.len() > self.buckets_nr as usize {
                         self.buckets.pop_front();
                     }
 
-                    return self.buckets.back_mut().unwrap()
+                    return self.buckets.back_mut().unwrap();
                 }
             }
         }
     }
 
     fn get_latest_bucket(&mut self) -> Option<&mut Bucket> {
-        return self.buckets.back_mut()
+        return self.buckets.back_mut();
     }
-
 }
