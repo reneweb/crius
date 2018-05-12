@@ -1,15 +1,14 @@
 mod circuit_breaker;
 mod circuit_breaker_stats;
 mod window;
-pub mod error;
 
-use self::error::CriusError;
+use error::CriusError;
 use self::circuit_breaker::CircuitBreaker;
-use std::sync::{Arc, Mutex};
+use std::marker::PhantomData;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
-use std::marker::PhantomData;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Config {
