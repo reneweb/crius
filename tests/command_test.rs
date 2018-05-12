@@ -15,6 +15,7 @@ mod circuit_breaker {
         Internal,
         External,
     }
+
     impl Display for TestError {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             write!(f, "An error happened")
@@ -69,7 +70,7 @@ mod circuit_breaker {
     #[test]
     fn rejects_command_if_circuit_open() {
         let mut cmd = TestCommand::<(), ()>::define(|_| Err(TestError::Internal))
-            .config(*Config::new().error_threshold(5))
+            .config(*Config::default().error_threshold(5))
             .create();
 
         for _ in 0..5 {
@@ -97,7 +98,7 @@ mod circuit_breaker {
     fn returns_fallback_if_circuit_open() {
         let mut cmd =
             Command::define_with_fallback(|_| return Err(TestError::Internal), |_| { return 5; })
-                .config(*Config::new().error_threshold(5))
+                .config(*Config::default().error_threshold(5))
                 .create();
 
         for _ in 0..5 {
