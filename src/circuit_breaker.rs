@@ -1,6 +1,6 @@
-use command::circuit_breaker_stats::CircuitBreakerStats;
-use command::window::Window;
-use command::window::Point;
+use circuit_breaker_stats::CircuitBreakerStats;
+use window::Window;
+use window::Point;
 use command::Config;
 use std::time::{Instant, Duration};
 
