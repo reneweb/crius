@@ -8,7 +8,7 @@ use std::time::{Instant, Duration};
 pub struct CircuitBreaker {
     circuit_breaker_stats: CircuitBreakerStats,
     circuit_open_time: Option<Instant>,
-    config: Config,
+    pub(crate) config: Config,
 }
 
 impl CircuitBreaker {
