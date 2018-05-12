@@ -1,9 +1,5 @@
-mod circuit_breaker;
-mod circuit_breaker_stats;
-mod window;
-
 use error::CriusError;
-use self::circuit_breaker::CircuitBreaker;
+use circuit_breaker::CircuitBreaker;
 use std::marker::PhantomData;
 
 const DEFAULT_ERROR_THRESHOLD: i32 = 10;

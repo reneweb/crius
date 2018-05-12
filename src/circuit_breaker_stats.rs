@@ -1,5 +1,5 @@
-use command::window::Window;
-use command::window::Point;
+use window::Window;
+use window::Point;
 
 #[derive(Clone, Debug)]
 pub struct CircuitBreakerStats {
