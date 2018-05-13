@@ -25,18 +25,32 @@ impl Bucket {
 
 #[derive(Clone, Debug)]
 pub struct Window {
+    /// Queue structure holding the window's buckets
     buckets: VecDeque<Bucket>,
+
+    /// Period during which a single bucket is valid
     bucket_ms: Duration,
-    buckets_nr: i32,
+
+    /// Maximum number of buckets in a window
+    buckets_nr: u32,
+
+    /// Total size of all buckets in a window
+    window_size: Duration,
 }
 
 impl Window {
-    pub fn new(config: Config) -> Self {
-        Window {
+    /// Attempt to create a window from a given configuration. Returns
+    /// `None` if the duration calculations overflowed.
+    pub fn new(config: Config) -> Option<Self> {
+        let bucket_ms = Duration::from_millis(config.bucket_size_in_ms);
+        let window_size = bucket_ms.checked_mul(config.buckets_in_window);
+
+        window_size.map(|window_size| Window {
+            bucket_ms,
+            window_size,
             buckets: VecDeque::new(),
-            bucket_ms: Duration::from_millis(config.bucket_size_in_ms),
             buckets_nr: config.buckets_in_window,
-        }
+        })
     }
 
     pub fn add_point(&mut self, point: Point) {
@@ -48,11 +62,14 @@ impl Window {
         self.buckets.clear();
     }
 
+    /// Returns the points of all currently valid buckets:
     pub fn update_and_get_points(&mut self) -> Vec<Point> {
-        self.update_window_returning_latest_bucket();
-        self.buckets.iter().fold(vec![], |mut acc, bucket| {
-            acc.extend(&bucket.points);
-            return acc;
+        let threshold = Instant::now() - self.window_size;
+        self.buckets.iter()
+            .filter(|bucket| bucket.timestamp > threshold)
+            .fold(vec![], |mut acc, bucket| {
+                acc.extend(&bucket.points);
+                return acc;
         })
     }
 
