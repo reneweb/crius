@@ -1,8 +1,9 @@
 use circuit_breaker_stats::CircuitBreakerStats;
-use window::Window;
-use window::Point;
 use command::Config;
+use error::CriusError;
 use std::time::{Instant, Duration};
+use window::Point;
+use window::Window;
 
 #[derive(Clone, Debug)]
 pub struct CircuitBreaker {
@@ -12,13 +13,17 @@ pub struct CircuitBreaker {
 }
 
 impl CircuitBreaker {
-    pub fn new(config: Config) -> CircuitBreaker {
-        let window = Window::new(config);
-        return CircuitBreaker {
-            circuit_breaker_stats: CircuitBreakerStats { window },
-            circuit_open_time: None,
-            config: config,
-        };
+    /// Attempt to create a circuit breaker from the given
+    /// configuration. This may return `None` if the configuration is
+    /// invalid (e.g. if the configured durations overflow).
+    pub fn new(config: Config) -> Result<CircuitBreaker, CriusError> {
+        Window::new(config)
+            .map(|window| CircuitBreaker {
+                circuit_breaker_stats: CircuitBreakerStats { window },
+                circuit_open_time: None,
+                config: config,
+            })
+            .ok_or(CriusError::InvalidConfig)
     }
 
     pub fn check_command_allowed(&mut self) -> bool {
