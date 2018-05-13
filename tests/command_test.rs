@@ -43,13 +43,17 @@ mod circuit_breaker {
 
     #[test]
     fn runs_command() {
-        let result = TestCommand::<(), u8>::define(|_| Ok(5)).run(());
+        let result = TestCommand::<(), u8>::define(
+            Config::default(), |_| Ok(5)
+        ).unwrap().run(());
         assert_eq!(5, result.unwrap());
     }
 
     #[test]
     fn runs_command_multiple_times() {
-        let mut cmd = TestCommand::<(), u8>::define(|_| return Ok(5));
+        let mut cmd = TestCommand::<(), u8>::define(
+            Config::default(), |_| return Ok(5)
+        ).unwrap();
 
         for _ in 0..5 {
             let result = cmd.run(());
@@ -59,15 +63,18 @@ mod circuit_breaker {
 
     #[test]
     fn runs_command_with_param() {
-        let result = TestCommand::<u8, u8>::define(|param| Ok(param)).run(5);
+        let result = TestCommand::<u8, u8>::define(
+            Config::default(), |param| Ok(param)
+        ).unwrap().run(5);
 
         assert_eq!(5, result.unwrap());
     }
 
     #[test]
     fn rejects_command_if_circuit_open() {
-        let mut cmd = TestCommand::<(), ()>::define(|_| Err(TestError::Internal))
-            .set_config(*Config::default().error_threshold(5));
+        let mut cmd = TestCommand::<(), ()>::define(
+            *Config::default().error_threshold(5), |_| Err(TestError::Internal)
+        ).unwrap();
 
         for _ in 0..5 {
             let err = cmd.run(()).expect_err("Expected internal error");
@@ -80,8 +87,9 @@ mod circuit_breaker {
 
     #[test]
     fn returns_fallback_if_err_result_returned() {
-        let mut cmd =
-            Command::define_with_fallback(|_| Err(TestError::Internal), |_| 5);
+        let mut cmd = Command::define_with_fallback(
+            Config::default(), |_| Err(TestError::Internal), |_| 5
+        ).unwrap();
 
         let result = cmd.run(());
         assert_eq!(5, result.unwrap());
@@ -90,8 +98,11 @@ mod circuit_breaker {
     #[test]
     fn returns_fallback_if_circuit_open() {
         let mut cmd =
-            Command::define_with_fallback(|_| Err(TestError::Internal), |_| 5)
-                .set_config(*Config::default().error_threshold(5));
+            Command::define_with_fallback(
+                *Config::default().error_threshold(5),
+                |_| Err(TestError::Internal),
+                |_| 5
+            ).unwrap();
 
         for _ in 0..5 {
             let result = cmd.run(());
@@ -104,12 +115,12 @@ mod circuit_breaker {
 
     #[test]
     fn handles_lots_of_calls() {
-        let mut cmd = TestCommand::<(), u8>::define(|_| {
+        let mut cmd = TestCommand::<(), u8>::define(Config::default(), |_| {
             let two_millis = time::Duration::from_millis(2);
             thread::sleep(two_millis);
 
             return Ok(5);
-        });
+        }).unwrap();
 
         let mut results = Vec::new();
         for _ in 0..1000 {
