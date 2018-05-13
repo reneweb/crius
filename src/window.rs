@@ -1,5 +1,5 @@
 use std::collections::vec_deque::VecDeque;
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 use command::Config;
 
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
@@ -65,17 +65,19 @@ impl Window {
     /// Returns the points of all currently valid buckets:
     pub fn update_and_get_points(&mut self) -> Vec<Point> {
         let threshold = Instant::now() - self.window_size;
-        self.buckets.iter()
+        self.buckets
+            .iter()
             .filter(|bucket| bucket.timestamp > threshold)
             .fold(vec![], |mut acc, bucket| {
                 acc.extend(&bucket.points);
                 return acc;
-        })
+            })
     }
 
     fn update_window_returning_latest_bucket(&mut self) -> &mut Bucket {
         let now = Instant::now();
-        let latest_threshold = self.buckets.back()
+        let latest_threshold = self.buckets
+            .back()
             .map(|bucket| bucket.timestamp + self.bucket_ms);
 
         if let Some(threshold) = latest_threshold {

@@ -92,8 +92,11 @@ where
         })
     }
 
-    pub fn define_with_fallback(cfg: Config, cmd: F, fallback: FB)
-                                -> Result<Command<I, O, E, F, FB>, CriusError> {
+    pub fn define_with_fallback(
+        cfg: Config,
+        cmd: F,
+        fallback: FB,
+    ) -> Result<Command<I, O, E, F, FB>, CriusError> {
         Ok(Command {
             cmd: cmd,
             fallback: Some(fallback),
@@ -106,7 +109,7 @@ where
         // Run the command if the breaker is disabled:
         let enabled = self.circuit_breaker.config.circuit_breaker_enabled;
         if !enabled {
-            return (self.cmd)(param)
+            return (self.cmd)(param);
         }
 
         // Execute the command if the breaker is enabled and execution

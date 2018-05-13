@@ -21,7 +21,6 @@ impl fmt::Display for CriusError {
             CriusError::ExecutionRejected => write!(f, "{}", REJECTED),
             CriusError::InvalidConfig => write!(f, "{}", INVALID),
         }
-
     }
 }
 
