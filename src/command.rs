@@ -67,10 +67,9 @@ impl Config {
 
 pub struct Command<I, O, E, F, FB>
 where
-    O: Send,
     E: From<CriusError>,
-    F: Fn(I) -> Result<O, E> + Sync + Send,
-    FB: Fn(E) -> O + Sync + Send,
+    F: Fn(I) -> Result<O, E>,
+    FB: Fn(E) -> O,
 {
     pub cmd: F,
     pub fallback: Option<FB>,
@@ -80,11 +79,9 @@ where
 
 impl<I, O, E, F, FB> Command<I, O, E, F, FB>
 where
-    I: Send + 'static,
-    O: Send + 'static,
-    E: Send + From<CriusError> + 'static,
-    F: Fn(I) -> Result<O, E> + Sync + Send,
-    FB: Fn(E) -> O + Sync + Send,
+    E: From<CriusError>,
+    F: Fn(I) -> Result<O, E>,
+    FB: Fn(E) -> O,
 {
     pub fn define(cfg: Config, cmd: F) -> Result<Command<I, O, E, F, FB>, CriusError> {
         Ok(Command {
