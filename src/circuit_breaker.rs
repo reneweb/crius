@@ -1,7 +1,7 @@
 use circuit_breaker_stats::CircuitBreakerStats;
 use command::Config;
 use error::CriusError;
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 use window::Point;
 use window::Window;
 
@@ -65,14 +65,13 @@ impl CircuitBreaker {
     }
 
     fn should_open_circuit(&mut self) -> bool {
-        let pct_above_threshold = self.circuit_breaker_stats.error_percentage() >=
-            self.config.error_threshold_percentage;
+        let pct_above_threshold =
+            self.circuit_breaker_stats.error_percentage() >= self.config.error_threshold_percentage;
 
-        let count_above_threshold = self.circuit_breaker_stats.error_nr() >=
-            self.config.error_threshold;
+        let count_above_threshold =
+            self.circuit_breaker_stats.error_nr() >= self.config.error_threshold;
 
         pct_above_threshold && count_above_threshold
-
     }
 
     fn time_to_close_circuit(&self) -> Instant {

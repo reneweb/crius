@@ -33,27 +33,20 @@ mod circuit_breaker {
         }
     }
 
-    type TestCommand<I, O> = Command<
-        I,
-        O,
-        TestError,
-        fn(I) -> Result<O, TestError>,
-        fn(TestError) -> O,
-    >;
+    type TestCommand<I, O> =
+        Command<I, O, TestError, fn(I) -> Result<O, TestError>, fn(TestError) -> O>;
 
     #[test]
     fn runs_command() {
-        let result = TestCommand::<(), u8>::define(
-            Config::default(), |_| Ok(5)
-        ).unwrap().run(());
+        let result = TestCommand::<(), u8>::define(Config::default(), |_| Ok(5))
+            .unwrap()
+            .run(());
         assert_eq!(5, result.unwrap());
     }
 
     #[test]
     fn runs_command_multiple_times() {
-        let mut cmd = TestCommand::<(), u8>::define(
-            Config::default(), |_| return Ok(5)
-        ).unwrap();
+        let mut cmd = TestCommand::<(), u8>::define(Config::default(), |_| return Ok(5)).unwrap();
 
         for _ in 0..5 {
             let result = cmd.run(());
@@ -63,18 +56,18 @@ mod circuit_breaker {
 
     #[test]
     fn runs_command_with_param() {
-        let result = TestCommand::<u8, u8>::define(
-            Config::default(), |param| Ok(param)
-        ).unwrap().run(5);
+        let result = TestCommand::<u8, u8>::define(Config::default(), |param| Ok(param))
+            .unwrap()
+            .run(5);
 
         assert_eq!(5, result.unwrap());
     }
 
     #[test]
     fn rejects_command_if_circuit_open() {
-        let mut cmd = TestCommand::<(), ()>::define(
-            *Config::default().error_threshold(5), |_| Err(TestError::Internal)
-        ).unwrap();
+        let mut cmd = TestCommand::<(), ()>::define(*Config::default().error_threshold(5), |_| {
+            Err(TestError::Internal)
+        }).unwrap();
 
         for _ in 0..5 {
             let err = cmd.run(()).expect_err("Expected internal error");
@@ -87,9 +80,9 @@ mod circuit_breaker {
 
     #[test]
     fn returns_fallback_if_err_result_returned() {
-        let mut cmd = Command::define_with_fallback(
-            Config::default(), |_| Err(TestError::Internal), |_| 5
-        ).unwrap();
+        let mut cmd =
+            Command::define_with_fallback(Config::default(), |_| Err(TestError::Internal), |_| 5)
+                .unwrap();
 
         let result = cmd.run(());
         assert_eq!(5, result.unwrap());
@@ -97,12 +90,11 @@ mod circuit_breaker {
 
     #[test]
     fn returns_fallback_if_circuit_open() {
-        let mut cmd =
-            Command::define_with_fallback(
-                *Config::default().error_threshold(5),
-                |_| Err(TestError::Internal),
-                |_| 5
-            ).unwrap();
+        let mut cmd = Command::define_with_fallback(
+            *Config::default().error_threshold(5),
+            |_| Err(TestError::Internal),
+            |_| 5,
+        ).unwrap();
 
         for _ in 0..5 {
             let result = cmd.run(());
