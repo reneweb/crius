@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 const DEFAULT_ERROR_THRESHOLD: i32 = 10;
 const DEFAULT_ERROR_THRESHOLD_PERCENTAGE: i32 = 50;
-const DEFAULT_BUCKETS_IN_WINDOW: i32 = 10;
+const DEFAULT_BUCKETS_IN_WINDOW: u32 = 10;
 const DEFAULT_BUCKET_SIZE_IN_MS: u64 = 1000;
 const DEFAULT_CIRCUIT_OPEN_MS: u64 = 5000;
 const DEFAULT_THREADPOOL_SIZE: i32 = 10;
@@ -14,7 +14,7 @@ const DEFAULT_CIRCUIT_BREAKER_ENABLED: bool = true;
 pub struct Config {
     pub error_threshold: i32,
     pub error_threshold_percentage: i32,
-    pub buckets_in_window: i32,
+    pub buckets_in_window: u32,
     pub bucket_size_in_ms: u64,
     pub circuit_open_ms: u64,
     pub threadpool_size: i32,
@@ -44,7 +44,7 @@ impl Config {
         return self;
     }
 
-    pub fn buckets_in_window(&mut self, buckets_in_window: i32) -> &mut Self {
+    pub fn buckets_in_window(&mut self, buckets_in_window: u32) -> &mut Self {
         self.buckets_in_window = buckets_in_window;
         return self;
     }
