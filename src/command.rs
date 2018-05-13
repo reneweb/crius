@@ -86,27 +86,23 @@ where
     F: Fn(I) -> Result<O, E> + Sync + Send,
     FB: Fn(E) -> O + Sync + Send,
 {
-    pub fn define(cmd: F) -> Command<I, O, E, F, FB> {
-        return Command {
+    pub fn define(cfg: Config, cmd: F) -> Result<Command<I, O, E, F, FB>, CriusError> {
+        Ok(Command {
             cmd: cmd,
             fallback: None,
             phantom_data: PhantomData,
-            circuit_breaker: CircuitBreaker::new(Config::default()),
-        };
+            circuit_breaker: CircuitBreaker::new(cfg)?,
+        })
     }
 
-    pub fn define_with_fallback(cmd: F, fallback: FB) -> Command<I, O, E, F, FB> {
-        return Command {
+    pub fn define_with_fallback(cfg: Config, cmd: F, fallback: FB)
+                                -> Result<Command<I, O, E, F, FB>, CriusError> {
+        Ok(Command {
             cmd: cmd,
             fallback: Some(fallback),
             phantom_data: PhantomData,
-            circuit_breaker: CircuitBreaker::new(Config::default()),
-        };
-    }
-
-    pub fn set_config(mut self, config: Config) -> Self {
-        self.circuit_breaker.config = config;
-        return self;
+            circuit_breaker: CircuitBreaker::new(cfg)?,
+        })
     }
 
     pub fn run(&mut self, param: I) -> Result<O, E> {
