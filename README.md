@@ -98,7 +98,7 @@ The complete list of configuration options with description is [here](#configura
 
 ### Error types and handling
 
-The error types that are provided by trychis can be found in `crius::command::error`. 
+The error types that are provided by crius can be found in `crius::command::error`. 
 Currently it only contains one error `RejectError`, which is returned when the circuit is open and therefore the command rejected.
  
 If an error is occurring it will be returned in the receiver, except when a fallback is provided where it is than passed as a param to the fallback function.
