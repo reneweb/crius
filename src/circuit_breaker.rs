@@ -21,7 +21,7 @@ impl CircuitBreaker {
             .map(|window| CircuitBreaker {
                 circuit_breaker_stats: CircuitBreakerStats { window },
                 circuit_open_time: None,
-                config: config,
+                config,
             })
             .ok_or(CriusError::InvalidConfig)
     }

@@ -7,7 +7,6 @@ const DEFAULT_ERROR_THRESHOLD_PERCENTAGE: i32 = 50;
 const DEFAULT_BUCKETS_IN_WINDOW: u32 = 10;
 const DEFAULT_BUCKET_SIZE_IN_MS: u64 = 1000;
 const DEFAULT_CIRCUIT_OPEN_MS: u64 = 5000;
-const DEFAULT_THREADPOOL_SIZE: i32 = 10;
 const DEFAULT_CIRCUIT_BREAKER_ENABLED: bool = true;
 
 #[derive(Copy, Clone, Debug)]
@@ -17,7 +16,6 @@ pub struct Config {
     pub buckets_in_window: u32,
     pub bucket_size_in_ms: u64,
     pub circuit_open_ms: u64,
-    pub threadpool_size: i32,
     pub circuit_breaker_enabled: bool,
 }
 
@@ -29,7 +27,6 @@ impl Config {
             buckets_in_window: DEFAULT_BUCKETS_IN_WINDOW,
             bucket_size_in_ms: DEFAULT_BUCKET_SIZE_IN_MS,
             circuit_open_ms: DEFAULT_CIRCUIT_OPEN_MS,
-            threadpool_size: DEFAULT_THREADPOOL_SIZE,
             circuit_breaker_enabled: DEFAULT_CIRCUIT_BREAKER_ENABLED,
         }
     }
