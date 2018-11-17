@@ -16,7 +16,7 @@ impl CircuitBreakerStats {
     }
 
     pub fn success_percentage(&mut self) -> i32 {
-        let points = self.window.update_and_get_points();
+        let points = self.window.get_points();
         let success_nr = self.success_nr();
         if success_nr == 0 {
             return 0;
@@ -26,7 +26,7 @@ impl CircuitBreakerStats {
     }
 
     pub fn error_percentage(&mut self) -> i32 {
-        let points = self.window.update_and_get_points();
+        let points = self.window.get_points();
         let error_nr = self.error_nr();
 
         if error_nr == 0 {
@@ -37,7 +37,7 @@ impl CircuitBreakerStats {
     }
 
     pub fn success_nr(&mut self) -> i32 {
-        let points = self.window.update_and_get_points();
+        let points = self.window.get_points();
         let success_count = points
             .iter()
             .filter(|&&point| return point == Point::SUCCESS)
@@ -48,7 +48,7 @@ impl CircuitBreakerStats {
     }
 
     pub fn error_nr(&mut self) -> i32 {
-        let points = self.window.update_and_get_points();
+        let points = self.window.get_points();
         let error_count = points
             .iter()
             .filter(|&&point| return point == Point::FAILURE)

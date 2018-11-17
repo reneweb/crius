@@ -63,7 +63,7 @@ impl Window {
     }
 
     /// Returns the points of all currently valid buckets:
-    pub fn update_and_get_points(&mut self) -> Vec<Point> {
+    pub fn get_points(&mut self) -> Vec<Point> {
         let threshold = Instant::now() - self.window_size;
         self.buckets
             .iter()
